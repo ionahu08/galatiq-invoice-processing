@@ -151,7 +151,7 @@ class LangGraphInvoiceOrchestrator:
         self.logger.info(f"[Approval] Making decision for {state.invoice_number}")
 
         try:
-            approval = await self.approval_agent.run(state.extraction, state.validation)
+            approval = await self.approval_agent.execute(state.extraction, state.validation)
             state.approval = approval
             state.overall_status = "approved" if approval.is_approved else "rejected"
             self.logger.info(f"  → Decision: {'APPROVED' if approval.is_approved else 'REJECTED'}")
@@ -174,7 +174,7 @@ class LangGraphInvoiceOrchestrator:
         self.logger.info(f"[Payment] Processing payment for {state.invoice_number}")
 
         try:
-            payment = await self.payment_agent.run(state.extraction, state.approval)
+            payment = await self.payment_agent.execute(state.extraction, state.approval)
             state.payment = payment
             state.overall_status = payment.status
             self.logger.info(f"  → Payment Status: {payment.status}")

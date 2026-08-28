@@ -102,9 +102,9 @@ class ProcessingResult(BaseModel):
     invoice_number: str
     vendor: str
     amount: float
-    extraction: ExtractedInvoice
-    validation: ValidationResult
-    approval: ApprovalResult
+    extraction: Optional[ExtractedInvoice] = None
+    validation: Optional[ValidationResult] = None
+    approval: Optional[ApprovalResult] = None
     payment: Optional[PaymentResult] = None
     overall_status: str = Field(
         ..., description="success, failed, requires_review, rejected"

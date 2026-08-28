@@ -6,14 +6,11 @@ langchain-core==0.2.0
 # API Clients
 anthropic==0.28.0
 requests==2.31.0
-xai-sdk==0.1.0  # xAI Grok API
+xai-sdk>=1.0.0  # xAI Grok API
 
 # Document Processing
 pdfplumber==0.10.0
 PyPDF2==3.0.1
-
-# Data & Database
-sqlite3-python==1.0.0
 
 # Utilities
 python-dotenv==1.0.0
