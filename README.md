@@ -26,13 +26,13 @@ User submits invoice (PDF, TXT, JSON, CSV)
     ProcessingResult (success/rejected/requires_review)
 ```
 
-### Design Patterns (Multi-Agent Study Phase 3)
+### Design Patterns
 
 - **Orchestrator-Workers:** One orchestrator coordinates 4 specialist agents
 - **Star Topology:** All communication flows through the orchestrator
 - **Code-Driven Planning:** Fixed 4-stage workflow
 - **Ephemeral Agents:** Agents spawn once per invoice, then discard
-- **Generator-Critic Loop:** Approval agent iterates to build confidence (Phase 3.2)
+- **Generator-Critic Loop:** Approval agent iterates with LLM reasoning to build confidence
 
 ### Key Decisions
 
@@ -103,14 +103,14 @@ The database is automatically created when you run the system. It seeds with:
 python main.py --invoice_path=data/invoices/invoice1.txt
 ```
 
-### Process All Invoices in a Directory
+### Process All Sample Invoices
 ```bash
 python main.py --batch --dir=data/invoices
 ```
 
 ### Enable Debug Logging
 ```bash
-python main.py --invoice_path=data/invoices/invoice1.txt --debug
+python main.py --invoice_path=data/invoices/invoice_1001.txt --debug
 ```
 
 ### Example Output
@@ -271,8 +271,8 @@ Tests cover:
 
 ### Add LLM Integration
 1. Update `ApprovalAgent` to call Claude/Grok API
-2. Implement generator-critic loop (Phase 3.2)
-3. Use structured outputs for confidence reasoning
+2. Implement generator-critic loop for approval confidence
+3. Use structured outputs for reasoning
 
 ## Production Deployment
 
@@ -282,7 +282,7 @@ For production, ensure:
 3. **Retries:** Implement retry logic for transient failures
 4. **Monitoring:** Track success rates, latency, error types
 5. **Security:** Validate all inputs, sanitize logs for sensitive data
-6. **Scaling:** Add Blackboard pattern for 10+ agents (Phase 3.3)
+6. **Scaling:** Extend orchestration patterns for 10+ agents as needed
 
 ## Performance Targets
 
@@ -291,12 +291,13 @@ For production, ensure:
 - **Accuracy:** > 95% (after LLM integration)
 - **Cost:** Reduce from $2M/year manual to < $100k/year automated
 
-## References
+## Technical Stack
 
-- **Multi-Agent Architecture:** Phase 2 (Design Space) & Phase 3 (Pattern Catalog)
-- **Communication:** Phase 4 (Interfaces, Information Loss, Dependencies)
-- **Production:** Phase 6 (Failure Modes, Bounds, Observability)
 - **Framework:** LangGraph (recommended) or custom orchestrator
+- **LLM:** xAI Grok or Claude (via Anthropic API)
+- **Document Processing:** pdfplumber, PyPDF2
+- **Database:** SQLite3
+- **Type Safety:** Pydantic v2
 
 ## Status
 
@@ -319,11 +320,11 @@ For production, ensure:
 - [ ] Batch processing optimization
 - [ ] Production observability
 
-### Future
+### Future Enhancements
 - [ ] Hierarchical delegation (50+ agents)
 - [ ] Blackboard pattern (loose coupling)
 - [ ] Dynamic agent discovery
-- [ ] High-stakes approval ensemble (Phase 3.2)
+- [ ] High-stakes approval ensemble voting
 
 ---
 
