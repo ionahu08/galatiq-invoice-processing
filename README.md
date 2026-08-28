@@ -34,12 +34,29 @@ User submits invoice (PDF, TXT, JSON, CSV)
 - **Ephemeral Agents:** Agents spawn once per invoice, then discard
 - **Generator-Critic Loop:** Approval agent iterates with LLM reasoning to build confidence
 
+### LangGraph Framework
+
+This system uses **LangGraph** for production-grade workflow orchestration:
+- **StateGraph:** Defines invoice processing state flowing through agents
+- **Node-based workflow:** Each agent is a node (Ingestion → Validation → Approval → Payment)
+- **Conditional routing:** Edges route based on validation/approval results
+- **Agentic sophistication:** Supports loops, retries, and complex routing patterns
+- **Production-ready:** Built for scaling to complex multi-agent workflows
+
+**LangGraph advantages:**
+- Clear state management (what data flows through the system)
+- Graph visualization (understand workflow at a glance)
+- Loop support (for generator-critic iterations)
+- Error recovery (conditional edges handle failures)
+- Extensible (add nodes/edges without changing core logic)
+
 ### Key Decisions
 
-1. **Centralized Control:** Single orchestrator decides stage transitions (scalable to 50+ agents)
-2. **Static Allocation:** Each specialist has one role (scalable; extend with hierarchical delegation if needed)
-3. **Structured Output:** All agents use Pydantic models for type safety and schema enforcement
-4. **Observability:** Structured logging at each stage for debugging and auditing
+1. **Centralized Control:** Single orchestrator (Ingestion → Validation → Approval → Payment)
+2. **LangGraph-powered:** Uses StateGraph for production robustness
+3. **Structured Output:** All agents use Pydantic models for type safety
+4. **LLM Reasoning:** Generator-Critic loop in Approval agent for confidence
+5. **Observability:** Structured logging at each node for debugging
 
 ## Project Structure
 
@@ -98,14 +115,19 @@ The database is automatically created when you run the system. It seeds with:
 
 ## Usage
 
-### Process a Single Invoice
+### Process a Single Invoice (LangGraph - Default)
 ```bash
-python main.py --invoice_path=data/invoices/invoice1.txt
+python main.py --invoice_path=data/invoices/invoice_1001.txt
 ```
 
-### Process All Sample Invoices
+### Process All Sample Invoices (LangGraph)
 ```bash
 python main.py --batch --dir=data/invoices
+```
+
+### Use Custom Orchestrator (Alternative)
+```bash
+python main.py --invoice_path=data/invoices/invoice_1001.txt --orchestrator=custom
 ```
 
 ### Enable Debug Logging
