@@ -1,6 +1,5 @@
 """Orchestration for multi-agent invoice processing."""
 
 from src.orchestrator.langgraph_orchestrator import LangGraphInvoiceOrchestrator
-from src.orchestrator.orchestrator import InvoiceOrchestrator
 
-__all__ = ["InvoiceOrchestrator", "LangGraphInvoiceOrchestrator"]
+__all__ = ["LangGraphInvoiceOrchestrator"]

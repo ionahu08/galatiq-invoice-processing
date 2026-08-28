@@ -69,12 +69,13 @@ galatiq-invoice-processing/
 │   │   ├── validation.py   # Checks inventory database
 │   │   ├── approval.py     # Makes approval decisions
 │   │   └── payment.py      # Processes payments
-│   ├── orchestrator/        # Workflow orchestration
-│   │   └── orchestrator.py # Coordinates the 4-stage workflow
+│   ├── orchestrator/        # Workflow orchestration (LangGraph)
+│   │   └── langgraph_orchestrator.py # StateGraph-based workflow
 │   ├── database/           # Inventory database
 │   │   └── setup.py        # SQLite setup, queries, stock checks
 │   ├── utils/              # Utilities
 │   │   └── logging.py      # Structured logging setup
+│   ├── llm.py              # LLM client (Claude/Grok)
 │   ├── config.py           # Configuration from environment
 │   ├── models.py           # Pydantic data models
 │   └── __init__.py
@@ -120,14 +121,9 @@ The database is automatically created when you run the system. It seeds with:
 python main.py --invoice_path=data/invoices/invoice_1001.txt
 ```
 
-### Process All Sample Invoices (LangGraph)
+### Process All Sample Invoices
 ```bash
 python main.py --batch --dir=data/invoices
-```
-
-### Use Custom Orchestrator (Alternative)
-```bash
-python main.py --invoice_path=data/invoices/invoice_1001.txt --orchestrator=custom
 ```
 
 ### Enable Debug Logging
@@ -315,25 +311,28 @@ For production, ensure:
 
 ## Technical Stack
 
-- **Framework:** LangGraph (recommended) or custom orchestrator
-- **LLM:** xAI Grok or Claude (via Anthropic API)
-- **Document Processing:** pdfplumber, PyPDF2
-- **Database:** SQLite3
+- **Orchestration:** LangGraph (StateGraph-based workflow)
+- **LLM:** Claude (Anthropic API) or xAI Grok
 - **Type Safety:** Pydantic v2
+- **Database:** SQLite3
+- **Document Processing:** pdfplumber, PyPDF2 (for future PDF support)
+- **Testing:** pytest, pytest-asyncio
+- **Python:** 3.11+
 
 ## Status
 
-### Current (MVP)
+### Current (MVP - Complete)
 - [x] Project structure & skeleton
 - [x] Pydantic models & schemas
-- [x] Database setup (SQLite)
-- [x] Base agent class
-- [ ] Ingestion agent implementation
-- [ ] Validation agent implementation
-- [ ] Approval agent (with LLM reasoning)
-- [ ] Payment agent
-- [ ] Orchestrator coordination
-- [ ] End-to-end testing
+- [x] Database setup (SQLite) with inventory seeding
+- [x] Base agent class with logging
+- [x] Ingestion agent (TXT, JSON parsing)
+- [x] Validation agent (inventory checks)
+- [x] Approval agent (rule-based + LLM integration ready)
+- [x] Payment agent (mock API)
+- [x] LangGraph orchestrator (StateGraph-based workflow)
+- [x] End-to-end testing (20 sample invoices)
+- [x] CLI entry point with batch processing
 
 ### Next Phase
 - [ ] LLM integration (Claude/Grok)

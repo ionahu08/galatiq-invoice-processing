@@ -14,7 +14,7 @@ from pathlib import Path
 
 from src.config import settings
 from src.database import create_inventory_database
-from src.orchestrator import InvoiceOrchestrator, LangGraphInvoiceOrchestrator
+from src.orchestrator import LangGraphInvoiceOrchestrator
 from src.utils.logging import get_logger, setup_logging
 
 
@@ -49,14 +49,6 @@ async def main():
         help="Enable debug logging",
     )
 
-    parser.add_argument(
-        "--orchestrator",
-        type=str,
-        default="langgraph",
-        choices=["langgraph", "custom"],
-        help="Orchestrator implementation to use (default: langgraph)",
-    )
-
     args = parser.parse_args()
 
     # Setup logging
@@ -69,19 +61,12 @@ async def main():
     logger.info(f"Initializing database: {settings.db_path}")
     create_inventory_database(settings.db_path)
 
-    # Create orchestrator (LangGraph by default)
-    if args.orchestrator == "langgraph":
-        logger.info("Using LangGraph orchestrator")
-        orchestrator = LangGraphInvoiceOrchestrator(
-            db_path=settings.db_path,
-            approval_threshold=settings.approval_threshold,
-        )
-    else:
-        logger.info("Using custom orchestrator")
-        orchestrator = InvoiceOrchestrator(
-            db_path=settings.db_path,
-            approval_threshold=settings.approval_threshold,
-        )
+    # Create orchestrator
+    logger.info("Initializing LangGraph orchestrator")
+    orchestrator = LangGraphInvoiceOrchestrator(
+        db_path=settings.db_path,
+        approval_threshold=settings.approval_threshold,
+    )
 
     try:
         if args.batch:

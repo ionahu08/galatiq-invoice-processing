@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 from src.database import create_inventory_database
-from src.orchestrator import InvoiceOrchestrator
+from src.orchestrator import LangGraphInvoiceOrchestrator
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def temp_db(tmp_path):
 @pytest.fixture
 def orchestrator(temp_db):
     """Create an orchestrator with a temporary database."""
-    return InvoiceOrchestrator(
+    return LangGraphInvoiceOrchestrator(
         db_path=temp_db,
         approval_threshold=10000.0,
     )
@@ -38,6 +38,3 @@ async def test_process_invoice_not_found(orchestrator):
     """Test processing a non-existent invoice file."""
     with pytest.raises(FileNotFoundError):
         await orchestrator.process_invoice("/path/to/nonexistent/invoice.txt")
-
-
-# Additional tests will be added as agents are implemented
