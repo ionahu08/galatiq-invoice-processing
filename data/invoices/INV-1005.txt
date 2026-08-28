@@ -1,0 +1,11 @@
+Invoice Number: INV-1005
+Vendor: ReliableSupplier
+Date: 2024-08-05
+Due Date: 2024-09-05
+Amount: 2750.00
+
+Items:
+- WidgetB, Qty: 3
+- GadgetX, Qty: 1
+
+Description: Normal recurring order - should pass all validations

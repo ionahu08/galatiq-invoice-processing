@@ -1,0 +1,10 @@
+Invoice Number: INV-1003
+Vendor: SuspiciousVendor
+Date: 2024-08-03
+Due Date: 2024-09-03
+Amount: 2000.00
+
+Items:
+- FakeItem, Qty: 10
+
+Description: Test fraudulent invoice - FakeItem has 0 stock

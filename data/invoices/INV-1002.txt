@@ -1,0 +1,10 @@
+Invoice Number: INV-1002
+Vendor: OverstockSupply
+Date: 2024-08-02
+Due Date: 2024-09-02
+Amount: 3500.00
+
+Items:
+- GadgetX, Qty: 20
+
+Description: Overstock order - TESTS QUANTITY MISMATCH (only 5 in stock)
