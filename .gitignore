@@ -63,3 +63,8 @@ Thumbs.db
 *.tmp
 .temp/
 temp/
+
+# Personal Learning Notes (NOT to be shared)
+*_PRIVATE.md
+LEARNING_NOTES_PRIVATE.md
+personal_notes/
