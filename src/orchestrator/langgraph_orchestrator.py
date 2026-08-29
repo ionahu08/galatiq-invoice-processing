@@ -1,5 +1,6 @@
 """LangGraph-based orchestrator for invoice processing workflow."""
 
+import asyncio
 import logging
 import time
 from datetime import datetime
@@ -59,10 +60,23 @@ class LangGraphInvoiceOrchestrator:
         approval_threshold: float = 10000.0,
         logger: Optional[logging.Logger] = None,
         metrics_dir: Optional[Path] = None,
+        batch_concurrency: int = 1,
+        batch_timeout: int = 30,
     ):
-        """Initialize LangGraph orchestrator."""
+        """Initialize LangGraph orchestrator.
+
+        Args:
+            db_path: Path to SQLite database
+            approval_threshold: Amount threshold for manual review
+            logger: Logger instance
+            metrics_dir: Directory for metrics export
+            batch_concurrency: Number of invoices to process in parallel (default 1 = sequential)
+            batch_timeout: Timeout per invoice in seconds
+        """
         self.logger = logger or logging.getLogger("langgraph_orchestrator")
         self.db_path = db_path
+        self.batch_concurrency = batch_concurrency
+        self.batch_timeout = batch_timeout
 
         # Initialize agents
         self.ingestion_agent = IngestionAgent()
@@ -79,7 +93,10 @@ class LangGraphInvoiceOrchestrator:
 
         # Build LangGraph
         self.graph = self._build_graph()
-        self.logger.info("LangGraph orchestrator initialized")
+        if batch_concurrency > 1:
+            self.logger.info(f"LangGraph orchestrator initialized (batch concurrency: {batch_concurrency})")
+        else:
+            self.logger.info("LangGraph orchestrator initialized")
 
     def _build_graph(self):
         """Build the LangGraph workflow."""
@@ -312,13 +329,13 @@ class LangGraphInvoiceOrchestrator:
         Returns:
             List of ProcessingResults
         """
-        self.logger.info(f"Starting batch processing: {len(invoice_paths)} invoices")
+        batch_start = time.time()
+        self.logger.info(f"Starting batch processing: {len(invoice_paths)} invoices (concurrency: {self.batch_concurrency})")
 
-        results = []
-        for i, path in enumerate(invoice_paths, 1):
-            self.logger.info(f"Processing {i}/{len(invoice_paths)}")
-            result = await self.process_invoice(path)
-            results.append(result)
+        if self.batch_concurrency > 1:
+            results = await self._process_batch_parallel(invoice_paths)
+        else:
+            results = await self._process_batch_sequential(invoice_paths)
 
         # Summary
         successful = sum(1 for r in results if r.overall_status == "success")
@@ -326,9 +343,13 @@ class LangGraphInvoiceOrchestrator:
         requires_review = sum(1 for r in results if r.overall_status == "requires_review")
         failed = sum(1 for r in results if r.overall_status == "failed")
 
+        batch_duration = time.time() - batch_start
+        throughput = len(invoice_paths) / batch_duration if batch_duration > 0 else 0
+
         self.logger.info(
             f"Batch complete: {successful} success, {rejected} rejected, "
-            f"{requires_review} review, {failed} failed"
+            f"{requires_review} review, {failed} failed (duration: {batch_duration:.2f}s, "
+            f"throughput: {throughput:.1f} invoices/sec)"
         )
 
         # Print metrics summary
@@ -339,6 +360,55 @@ class LangGraphInvoiceOrchestrator:
         self.metrics.export_csv()
         self.logger.info(f"Metrics exported to {self.metrics.output_dir}")
 
+        return results
+
+    async def _process_batch_sequential(self, invoice_paths: list[str]) -> list[ProcessingResult]:
+        """Process invoices sequentially (one at a time)."""
+        results = []
+        for i, path in enumerate(invoice_paths, 1):
+            self.logger.info(f"Processing {i}/{len(invoice_paths)}")
+            result = await self.process_invoice(path)
+            results.append(result)
+        return results
+
+    async def _process_batch_parallel(self, invoice_paths: list[str]) -> list[ProcessingResult]:
+        """Process invoices in parallel with concurrency control."""
+        semaphore = asyncio.Semaphore(self.batch_concurrency)
+        total = len(invoice_paths)
+
+        async def process_with_semaphore(index: int, path: str) -> ProcessingResult:
+            async with semaphore:
+                self.logger.info(f"Processing {index}/{total}")
+                try:
+                    return await asyncio.wait_for(
+                        self.process_invoice(path),
+                        timeout=self.batch_timeout
+                    )
+                except asyncio.TimeoutError:
+                    self.logger.error(f"Processing timeout for {path}")
+                    return ProcessingResult(
+                        invoice_number="TIMEOUT",
+                        vendor="UNKNOWN",
+                        amount=0.0,
+                        overall_status="failed",
+                        processing_errors=["Processing timeout"],
+                    )
+                except Exception as e:
+                    self.logger.error(f"Processing error for {path}: {str(e)}")
+                    return ProcessingResult(
+                        invoice_number="ERROR",
+                        vendor="UNKNOWN",
+                        amount=0.0,
+                        overall_status="failed",
+                        processing_errors=[str(e)],
+                    )
+
+        # Process all invoices concurrently
+        tasks = [
+            process_with_semaphore(i, path)
+            for i, path in enumerate(invoice_paths, 1)
+        ]
+        results = await asyncio.gather(*tasks)
         return results
 
     def _state_to_result(self, state: InvoiceProcessingState) -> ProcessingResult:

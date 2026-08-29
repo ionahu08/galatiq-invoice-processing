@@ -49,6 +49,20 @@ async def main():
         help="Enable debug logging",
     )
 
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Number of invoices to process in parallel (default: 1 = sequential)",
+    )
+
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=30,
+        help="Timeout per invoice in seconds (default: 30)",
+    )
+
     args = parser.parse_args()
 
     # Setup logging
@@ -66,6 +80,8 @@ async def main():
     orchestrator = LangGraphInvoiceOrchestrator(
         db_path=settings.db_path,
         approval_threshold=settings.approval_threshold,
+        batch_concurrency=args.concurrency,
+        batch_timeout=args.timeout,
     )
 
     try:
