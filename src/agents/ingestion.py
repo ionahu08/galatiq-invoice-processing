@@ -50,6 +50,8 @@ class IngestionAgent(BaseAgent):
             return await self._extract_from_pdf(file_path)
         elif file_path.suffix.lower() in [".csv"]:
             return await self._extract_from_csv(file_path)
+        elif file_path.suffix.lower() == ".xml":
+            return await self._extract_from_xml(file_path)
         else:
             raise ValueError(f"Unsupported file type: {file_path.suffix}")
 
