@@ -1,6 +1,8 @@
 """LangGraph-based orchestrator for invoice processing workflow."""
 
 import logging
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from src.agents import ApprovalAgent, IngestionAgent, PaymentAgent, ValidationAgent
 from src.models import ApprovalResult, ExtractedInvoice, PaymentResult, ProcessingResult, ValidationResult
+from src.utils.metrics import MetricsCollector, InvoiceMetrics, ProcessingStatus
 
 
 class InvoiceProcessingState(BaseModel):
@@ -55,6 +58,7 @@ class LangGraphInvoiceOrchestrator:
         db_path: Path,
         approval_threshold: float = 10000.0,
         logger: Optional[logging.Logger] = None,
+        metrics_dir: Optional[Path] = None,
     ):
         """Initialize LangGraph orchestrator."""
         self.logger = logger or logging.getLogger("langgraph_orchestrator")
@@ -67,6 +71,11 @@ class LangGraphInvoiceOrchestrator:
             approval_threshold=approval_threshold, enable_llm=True
         )
         self.payment_agent = PaymentAgent()
+
+        # Initialize metrics collector
+        self.metrics = MetricsCollector(output_dir=metrics_dir or Path("metrics"))
+        self._invoice_start_time: Optional[datetime] = None
+        self._agent_times: dict[str, float] = {}
 
         # Build LangGraph
         self.graph = self._build_graph()
@@ -107,6 +116,7 @@ class LangGraphInvoiceOrchestrator:
         """Ingestion node: Extract invoice data."""
         self.logger.info(f"[Ingestion] Processing {state.invoice_path}")
 
+        start_time = time.time()
         try:
             extraction = await self.ingestion_agent.run(state.invoice_path)
             state.extraction = extraction
@@ -121,6 +131,7 @@ class LangGraphInvoiceOrchestrator:
             state.overall_status = "failed"
             self.logger.error(f"  → Error: {str(e)}")
 
+        self._agent_times['ingestion'] = (time.time() - start_time) * 1000
         return state
 
     async def _node_validation(self, state: InvoiceProcessingState):
@@ -130,6 +141,7 @@ class LangGraphInvoiceOrchestrator:
 
         self.logger.info(f"[Validation] Checking inventory for {state.invoice_number}")
 
+        start_time = time.time()
         try:
             validation = await self.validation_agent.run(state.extraction)
             state.validation = validation
@@ -141,6 +153,7 @@ class LangGraphInvoiceOrchestrator:
             state.overall_status = "failed"
             self.logger.error(f"  → Error: {str(e)}")
 
+        self._agent_times['validation'] = (time.time() - start_time) * 1000
         return state
 
     async def _node_approval(self, state: InvoiceProcessingState):
@@ -150,6 +163,7 @@ class LangGraphInvoiceOrchestrator:
 
         self.logger.info(f"[Approval] Making decision for {state.invoice_number}")
 
+        start_time = time.time()
         try:
             approval = await self.approval_agent.execute(state.extraction, state.validation)
             state.approval = approval
@@ -164,6 +178,7 @@ class LangGraphInvoiceOrchestrator:
             state.overall_status = "failed"
             self.logger.error(f"  → Error: {str(e)}")
 
+        self._agent_times['approval'] = (time.time() - start_time) * 1000
         return state
 
     async def _node_payment(self, state: InvoiceProcessingState):
@@ -173,6 +188,7 @@ class LangGraphInvoiceOrchestrator:
 
         self.logger.info(f"[Payment] Processing payment for {state.invoice_number}")
 
+        start_time = time.time()
         try:
             payment = await self.payment_agent.execute(state.extraction, state.approval)
             state.payment = payment
@@ -184,6 +200,7 @@ class LangGraphInvoiceOrchestrator:
             state.overall_status = "failed"
             self.logger.error(f"  → Error: {str(e)}")
 
+        self._agent_times['payment'] = (time.time() - start_time) * 1000
         return state
 
     async def _node_end(self, state: InvoiceProcessingState):
@@ -220,6 +237,10 @@ class LangGraphInvoiceOrchestrator:
         """
         self.logger.info(f"Starting invoice processing: {invoice_path}")
 
+        invoice_start = datetime.now()
+        start_time = time.time()
+        self._agent_times = {}
+
         # Initialize state
         state = InvoiceProcessingState(invoice_path=invoice_path)
 
@@ -233,6 +254,37 @@ class LangGraphInvoiceOrchestrator:
             output_state = state
             output_state.processing_errors.append(str(e))
             output_state.overall_status = "failed"
+
+        # Record metrics
+        invoice_end = datetime.now()
+        total_duration_ms = (time.time() - start_time) * 1000
+
+        # Map status to ProcessingStatus enum
+        status_map = {
+            "success": ProcessingStatus.SUCCESS,
+            "rejected": ProcessingStatus.REJECTED,
+            "requires_review": ProcessingStatus.REQUIRES_REVIEW,
+            "failed": ProcessingStatus.FAILED,
+        }
+        status = status_map.get(output_state.overall_status, ProcessingStatus.FAILED)
+
+        invoice_metrics = InvoiceMetrics(
+            invoice_number=output_state.invoice_number or "UNKNOWN",
+            vendor=output_state.vendor or "UNKNOWN",
+            amount=output_state.amount,
+            status=status,
+            start_time=invoice_start,
+            end_time=invoice_end,
+            total_duration_ms=total_duration_ms,
+            ingestion_ms=self._agent_times.get('ingestion', 0),
+            validation_ms=self._agent_times.get('validation', 0),
+            approval_ms=self._agent_times.get('approval', 0),
+            payment_ms=self._agent_times.get('payment', 0),
+            approval_confidence=output_state.approval.approval_confidence if output_state.approval else 0.0,
+            validation_issues=output_state.validation.total_issues if output_state.validation else 0,
+            error=output_state.processing_errors[0] if output_state.processing_errors else None,
+        )
+        self.metrics.record_invoice(invoice_metrics)
 
         # Convert state to ProcessingResult
         return self._state_to_result(output_state)
@@ -278,6 +330,14 @@ class LangGraphInvoiceOrchestrator:
             f"Batch complete: {successful} success, {rejected} rejected, "
             f"{requires_review} review, {failed} failed"
         )
+
+        # Print metrics summary
+        self.metrics.print_summary()
+
+        # Export metrics
+        self.metrics.export_json()
+        self.metrics.export_csv()
+        self.logger.info(f"Metrics exported to {self.metrics.output_dir}")
 
         return results
 
