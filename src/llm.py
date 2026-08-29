@@ -37,10 +37,17 @@ class LLMClient:
     def _init_claude(self):
         """Initialize Anthropic Claude client."""
         try:
-            from anthropic import Anthropic
+            from anthropic import AsyncAnthropic
 
-            self.client = Anthropic(api_key=settings.anthropic_api_key)
-            self.logger.info(f"Claude client initialized ({self.model})")
+            if not settings.anthropic_api_key:
+                self.logger.warning(
+                    "ANTHROPIC_API_KEY not set in .env - using placeholder responses. "
+                    "Set ANTHROPIC_API_KEY to use real Claude API."
+                )
+                self.client = None
+            else:
+                self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+                self.logger.info(f"Claude client initialized ({self.model})")
         except ImportError:
             raise ImportError("anthropic package not installed")
 
@@ -59,8 +66,8 @@ class LLMClient:
         Returns:
             Dict with reasoning, risk factors, and recommendation
         """
-        if self.provider == "xai" and self.client is None:
-            return self._grok_placeholder_reasoning(vendor, amount, validation_issues)
+        if self.client is None:
+            return self._placeholder_reasoning(vendor, amount, validation_issues)
 
         prompt = self._build_reasoning_prompt(vendor, amount, items, validation_issues)
         return await self._call_claude_reasoning(prompt)
@@ -75,8 +82,8 @@ class LLMClient:
         Returns:
             Dict with critique, identified flaws
         """
-        if self.provider == "xai" and self.client is None:
-            return self._grok_placeholder_critique(reasoning)
+        if self.client is None:
+            return self._placeholder_critique(reasoning)
 
         prompt = self._build_critique_prompt(reasoning)
         return await self._call_claude_critique(prompt)
@@ -92,8 +99,8 @@ class LLMClient:
         Returns:
             Dict with revised reasoning and confidence
         """
-        if self.provider == "xai" and self.client is None:
-            return self._grok_placeholder_revision(reasoning, critique)
+        if self.client is None:
+            return self._placeholder_revision(reasoning, critique)
 
         prompt = self._build_revision_prompt(reasoning, critique)
         return await self._call_claude_revision(prompt)
@@ -102,7 +109,7 @@ class LLMClient:
     async def _call_claude_reasoning(self, prompt: str) -> dict:
         """Call Claude for invoice reasoning."""
         try:
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=1024,
                 messages=[{"role": "user", "content": prompt}],
@@ -122,7 +129,7 @@ class LLMClient:
     async def _call_claude_critique(self, prompt: str) -> dict:
         """Call Claude for critique."""
         try:
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=512,
                 messages=[{"role": "user", "content": prompt}],
@@ -137,7 +144,7 @@ class LLMClient:
     async def _call_claude_revision(self, prompt: str) -> dict:
         """Call Claude for revision."""
         try:
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=1024,
                 messages=[{"role": "user", "content": prompt}],
@@ -215,13 +222,13 @@ Provide revised recommendation in JSON format:
   "changes_made": "summary of what changed"
 }}"""
 
-    # Placeholder Methods (for Grok when SDK unavailable)
-    def _grok_placeholder_reasoning(
+    # Placeholder Methods (used when API key not configured)
+    def _placeholder_reasoning(
         self, vendor: str, amount: float, issues: list
     ) -> dict:
-        """Placeholder Grok reasoning (for development)."""
+        """Placeholder reasoning (for development/testing)."""
         self.logger.debug(
-            f"[GROK PLACEHOLDER] Reasoning for {vendor}, ${amount:.2f}, {len(issues)} issues"
+            f"[PLACEHOLDER] Reasoning for {vendor}, ${amount:.2f}, {len(issues)} issues"
         )
 
         has_issues = len(issues) > 0
@@ -236,9 +243,9 @@ Provide revised recommendation in JSON format:
             "confidence": 0.7 if has_issues or high_amount else 0.85,
         }
 
-    def _grok_placeholder_critique(self, reasoning: dict) -> dict:
-        """Placeholder Grok critique (for development)."""
-        self.logger.debug(f"[GROK PLACEHOLDER] Critiquing recommendation")
+    def _placeholder_critique(self, reasoning: dict) -> dict:
+        """Placeholder critique (for development/testing)."""
+        self.logger.debug(f"[PLACEHOLDER] Critiquing recommendation")
 
         has_issues = len(reasoning.get("risk_factors", [])) > 0
 
@@ -249,9 +256,9 @@ Provide revised recommendation in JSON format:
             "suggestions": "Consider stricter validation" if has_issues else "No changes needed",
         }
 
-    def _grok_placeholder_revision(self, reasoning: dict, critique: dict) -> dict:
-        """Placeholder Grok revision (for development)."""
-        self.logger.debug(f"[GROK PLACEHOLDER] Revising based on critique")
+    def _placeholder_revision(self, reasoning: dict, critique: dict) -> dict:
+        """Placeholder revision (for development/testing)."""
+        self.logger.debug(f"[PLACEHOLDER] Revising based on critique")
 
         # If critique found flaws, revise recommendation
         if critique.get("has_flaws"):

@@ -191,6 +191,39 @@ ENABLE_OBSERVABILITY=true
 DEBUG_MODE=false
 ```
 
+## LLM Integration (Generator-Critic Loop)
+
+The approval agent uses a **generator-critic loop** for intelligent decision-making:
+
+### Quick Start
+1. **Get API Key:** Go to [console.anthropic.com](https://console.anthropic.com) and create an API key
+2. **Add to .env:**
+   ```env
+   ANTHROPIC_API_KEY=sk-ant-your-key-here
+   ```
+3. **Run:** `python main.py --invoice_path=data/invoices/invoice_1001.txt --debug`
+
+### How It Works
+```
+Phase 1: Generate
+  Claude analyzes invoice and proposes recommendation
+  
+Phase 2: Critique
+  Claude reviews its recommendation for flaws
+  
+Phase 3: Revise (if needed)
+  Claude refines based on critique feedback
+  
+Result: Approval decision with confidence score (0-1)
+```
+
+### Demo
+```bash
+python demo_generator_critic.py
+```
+
+See [LLM_INTEGRATION.md](LLM_INTEGRATION.md) for detailed documentation.
+
 ## Workflow Stages
 
 ### Stage 1: Ingestion
@@ -207,13 +240,17 @@ DEBUG_MODE=false
   - No negative quantities
   - Valid invoice amounts
 
-### Stage 3: Approval
+### Stage 3: Approval (with Generator-Critic Loop ✨)
 - **Input:** ExtractedInvoice + ValidationResult
-- **Output:** ApprovalResult
+- **Output:** ApprovalResult with confidence score
 - **Rules:**
   - Auto-reject if validation failed
   - Auto-reject if amount > $10K (requires manual review)
-  - Generator-Critic loop for confidence (coming in next phase)
+  - **Generator-Critic loop using Claude API:**
+    - Phase 1: Generate initial recommendation & analysis
+    - Phase 2: Critique the recommendation for flaws
+    - Phase 3: Revise if critique finds issues
+  - Returns approval decision with 0-1 confidence score
 
 ### Stage 4: Payment
 - **Input:** ExtractedInvoice + ApprovalResult
@@ -287,10 +324,11 @@ Tests cover:
 1. Add checks to `ValidationAgent._validate_item()`
 2. Return `ValidationIssue` for each failure
 
-### Add LLM Integration
-1. Update `ApprovalAgent` to call Claude/Grok API
-2. Implement generator-critic loop for approval confidence
-3. Use structured outputs for reasoning
+### LLM Integration (Already Implemented ✅)
+- Generator-critic loop is built into `ApprovalAgent`
+- Supports Claude and Grok APIs
+- To use: Add `ANTHROPIC_API_KEY` to `.env`
+- See [LLM_INTEGRATION.md](LLM_INTEGRATION.md) for details
 
 ## Production Deployment
 
@@ -321,25 +359,34 @@ For production, ensure:
 
 ## Status
 
-### Current (MVP - Complete)
+### Phase 1 (MVP - Complete ✅)
 - [x] Project structure & skeleton
 - [x] Pydantic models & schemas
 - [x] Database setup (SQLite) with inventory seeding
 - [x] Base agent class with logging
-- [x] Ingestion agent (TXT, JSON parsing)
+- [x] Ingestion agent (TXT, JSON, CSV, PDF, XML parsing)
 - [x] Validation agent (inventory checks)
-- [x] Approval agent (rule-based + LLM integration ready)
+- [x] Approval agent (rule-based + LLM integration)
 - [x] Payment agent (mock API)
 - [x] LangGraph orchestrator (StateGraph-based workflow)
 - [x] End-to-end testing (20 sample invoices)
 - [x] CLI entry point with batch processing
 
-### Next Phase
-- [ ] LLM integration (Claude/Grok)
-- [ ] Generator-Critic loop (confidence)
-- [ ] PDF extraction (pdfplumber)
-- [ ] Batch processing optimization
-- [ ] Production observability
+### Phase 2 (LLM Integration - Complete ✅)
+- [x] **LLM integration (Claude/Anthropic API)**
+- [x] **Generator-Critic loop (3-phase reasoning with confidence)**
+- [x] Async Claude API client (AsyncAnthropic)
+- [x] Placeholder responses for development
+- [x] Approval confidence scoring (0-1)
+- [x] Demo script (demo_generator_critic.py)
+- [x] Comprehensive LLM documentation (LLM_INTEGRATION.md)
+
+### Next Phase (Phase 3)
+- [ ] PDF extraction hardening (pdfplumber edge cases)
+- [ ] Batch processing optimization (parallel invoices)
+- [ ] Production observability (metrics, dashboards)
+- [ ] Vendor reputation scoring agent
+- [ ] Fraud detection agent
 
 ### Future Enhancements
 - [ ] Hierarchical delegation (50+ agents)
